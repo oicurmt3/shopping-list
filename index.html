@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shopping List</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Styles unchanged from the user-provided version */
+        body { font-family: 'Inter', sans-serif; }
+        .bought-text { text-decoration: line-through; color: #a0aec0; opacity: 0.8; }
+        .bought-item-bg { background-color: #555; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .list-item-enter { animation: fadeIn 0.3s ease-out; }
+        input:focus { border-color: #3b82f6 !important; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5) !important; outline: 2px solid transparent; outline-offset: 2px; }
+        .action-button { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; padding-left: 0.75rem; padding-right: 0.75rem; padding-top: 0.5rem; padding-bottom: 0.5rem; border: none; }
+        .suggestions-container { position: relative; }
+        .suggestions-list { position: absolute; background-color: #4b5563; border: 1px solid #6b7280; border-top: none; border-radius: 0 0 0.375rem 0.375rem; width: 100%; max-height: 150px; overflow-y: auto; z-index: 10; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        .suggestion-item { padding: 0.5rem 1rem; color: #e5e7eb; cursor: pointer; }
+        .suggestion-item:hover { background-color: #374151; }
+        .status-message { text-align: center; color: #9ca3af; font-size: 0.875rem; margin-top: 1rem; padding: 0.5rem; border-radius: 0.375rem; }
+        .error-message { color: #f87171; background-color: rgba(153, 27, 27, 0.3); border: 1px solid #dc2626; }
+        #browsePageContainer.hidden { display: none; }
+        #browsePageContainer { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(17, 24, 39, 0.95); z-index: 50; padding: 1rem; overflow-y: auto; display: flex; justify-content: center; align-items: flex-start; }
+        #browseContent { background-color: #374151; padding: 1.5rem; border-radius: 0.5rem; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; border: 1px solid #4b5563; }
+        #browseItemsContainer { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
+        .browse-item-button { padding: 0.5rem 0.75rem; border-radius: 0.375rem; font-size: 0.875rem; font-weight: 500; transition: background-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out; cursor: pointer; border: none; }
+        .browse-item-button.on-list { background-color: #10b981; color: white; }
+        .browse-item-button.off-list { background-color: #4b5563; color: #d1d5db; }
+        .browse-item-button:hover { filter: brightness(1.1); }
+        .inline-svg { display: inline-block; width: 1em; height: 1em; vertical-align: -0.125em; margin-left: 0.25em; margin-right: 0.25em; }
+
+        /* --- NEW: Style for delete mode indication (subtle) --- */
+        .delete-mode-active #browseItemsContainer .browse-item-button {
+             cursor: crosshair; /* Indicate different action */
+             box-shadow: 0 0 0 2px #ef4444; /* Subtle red ring */
+        }
+/* Apply specific hover effects only on devices that can truly hover */
+        @media (hover: hover) {
+            .delete-mode-active #browseItemsContainer .browse-item-button:hover {
+                 background-color: #dc2626; /* Red background on hover in delete mode */
+                 filter: brightness(1); /* Reset brightness filter */
+                 color: white;
+            }
+            /* You might also want to put general button hover effects here */
+             .browse-item-button:not(.on-list):not(.off-list):hover, /* Base hover for non-toggled buttons */
+             .browse-item-button.off-list:hover {
+                 filter: brightness(1.15); /* Example */
+             }
+             .browse-item-button.on-list:hover {
+                  filter: brightness(1.1); /* Slightly different example */
+             }
+        }
+
+        /* Fallback/base style for all devices (including touch) - no background change on hover */
+        .browse-item-button:hover {
+             /* Define minimal hover effects safe for touch, like slight brightness */
+             /* filter: brightness(1.05); /* Example subtle effect */
+        }
+        /* The rule below might be redundant if general one above exists */
+        /* .delete-mode-active #browseItemsContainer .browse-item-button:hover { */
+             /* filter: brightness(1.05); /* Example */
+        /* } */
+
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200 min-h-screen p-1">
+
+    <div id="mainContent" class="bg-gray-800 rounded-lg shadow-xl p-2 w-full max-w-md border border-gray-700 mx-auto mt-2">
+        <h1 class="text-2xl font-bold text-center text-gray-100 mb-1">My Shopping List</h1>
+        <p class="text-center text-sm text-gray-400 mb-3 flex items-center justify-center">
+            Click the
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="inline-svg w-4 h-4 mx-1"> <path d="M3 4.75A.75.75 0 0 1 3.75 4h12.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 4.75ZM3 9.75A.75.75 0 0 1 3.75 9h12.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 9.75ZM3 14.75A.75.75 0 0 1 3.75 14h12.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 14.75Z" />
+            </svg>
+            to browse all items
+        </p>
+        <div class="suggestions-container mb-4">
+            <div class="flex">
+                 <input type="text" id="itemInput" placeholder="Add or search item..." aria-label="Add or search item" class="flex-grow px-4 py-2 bg-gray-700 border border-gray-600 text-gray-100 rounded-l-md focus:outline-none min-w-0" autocomplete="off">
+                <button id="browseButton" title="Browse all items" class="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-3 py-2 transition duration-150 ease-in-out action-button flex-shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path d="M3 4.75A.75.75 0 0 1 3.75 4h12.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 4.75ZM3 9.75A.75.75 0 0 1 3.75 9h12.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 9.75ZM3 14.75A.75.75 0 0 1 3.75 14h12.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 14.75Z" /></svg>
+                </button>
+                <button id="addButton" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-r-md transition duration-150 ease-in-out action-button flex-shrink-0">Add</button>
+            </div>
+            <div id="suggestionsList" class="suggestions-list hidden"></div>
+        </div>
+        <ul id="shoppingList" class="space-y-2 mb-4"></ul>
+        <div id="statusMessage" class="status-message hidden"></div>
+        <div class="space-y-2">
+            <div class="flex space-x-2"> <button id="clearButton" class="flex-grow bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-md transition duration-150 ease-in-out action-button">Clear Bought</button>
+                <button id="resetButton" class="flex-grow bg-orange-600 hover:bg-orange-700 text-white font-semibold px-4 py-2 rounded-md transition duration-150 ease-in-out action-button">Reset List</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="browsePageContainer" class="hidden">
+        <div id="browseContent">
+             <div class="flex justify-between items-center mb-1"> <h2 class="text-xl font-bold text-gray-100">Browse All</h2>
+                 <div class="flex items-center space-x-2">
+                    <button id="deleteModeButton" title="Enable delete mode" class="text-xs font-semibold text-white px-2 py-1 rounded transition duration-150 ease-in-out action-button bg-red-700 hover:bg-red-600">
+                        Delete
+                    </button>
+                    <button id="closeBrowseButton" title="Close browse window" class="text-xs font-semibold text-white px-2 py-1 rounded transition duration-150 ease-in-out action-button bg-gray-600 hover:bg-gray-500">
+                        Close
+                    </button>
+                 </div>
+             </div>
+             <p id="deleteModeStatus" class="text-sm text-center text-yellow-400 mb-3 hidden">DELETE MODE: Click item to delete.</p>
+            <p id="browseInstructionText" class="text-sm text-gray-400 mb-4">Toggle items to add or remove them from your current list.</p>
+             <div id="browseItemsContainer">
+                 </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Constants ---
+        const API_ENDPOINT = 'api.php';
+
+        // --- DOM Elements ---
+        const elements = {
+            itemInput: document.getElementById('itemInput'),
+            addButton: document.getElementById('addButton'),
+            shoppingList: document.getElementById('shoppingList'),
+            clearButton: document.getElementById('clearButton'),
+            resetButton: document.getElementById('resetButton'),
+            suggestionsList: document.getElementById('suggestionsList'),
+            statusMessage: document.getElementById('statusMessage'),
+            mainContent: document.getElementById('mainContent'),
+            browseButton: document.getElementById('browseButton'),
+            browsePageContainer: document.getElementById('browsePageContainer'),
+            browseContent: document.getElementById('browseContent'), // Needed for delete mode class
+            browseItemsContainer: document.getElementById('browseItemsContainer'),
+            closeBrowseButton: document.getElementById('closeBrowseButton'),
+            deleteModeButton: document.getElementById('deleteModeButton'), // NEW
+            deleteModeStatus: document.getElementById('deleteModeStatus')  // NEW
+        };
+
+        // --- State ---
+        let state = {
+            items: [],
+            masterItemList: [],
+            masterItemTexts: [],
+            isLoading: false,
+            hasUnsavedChanges: false,
+            isBrowsePageOpen: false,
+            isDeleteModeActive: false // NEW state for delete mode
+        };
+
+        // --- Utility Functions ---
+        function showStatus(message, isError = false, persist = false) { elements.statusMessage.textContent = message; elements.statusMessage.classList.toggle('hidden', false); elements.statusMessage.classList.toggle('error-message', isError); if (!isError && !persist) { setTimeout(clearStatus, 3000); } }
+        function clearStatus() { elements.statusMessage.textContent = ''; elements.statusMessage.classList.add('hidden'); elements.statusMessage.classList.remove('error-message'); }
+
+        // --- Server Communication ---
+        async function fetchLists() { console.log("Fetching lists..."); showStatus("Loading lists...", false, true); state.isLoading = true; try { const response = await fetch(API_ENDPOINT); if (!response.ok) throw new Error(`HTTP error ${response.status}`); const data = await response.json(); const validItems = Array.isArray(data.items) ? data.items.map(item => ({...item, bought: !!item.bought })).filter(i => i && i.id && typeof i.text === 'string') : []; const validMasterList = Array.isArray(data.masterItemList) ? data.masterItemList.filter(item => item && item.text && typeof item.boughtCount === 'number') : []; return { items: validItems, masterItemList: validMasterList }; } catch (error) { console.error('Fetch error:', error); showStatus(`Error loading: ${error.message}.`, true, true); return { items: [], masterItemList: [] }; } finally { state.isLoading = false; if (!elements.statusMessage.classList.contains('error-message')) { clearStatus(); } } }
+        async function saveLists() { if (state.isLoading) { state.hasUnsavedChanges = true; return; } console.log("Saving lists..."); state.isLoading = true; state.hasUnsavedChanges = false; const payload = { items: state.items }; try { const response = await fetch(API_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); if (!response.ok) { let errorData; try { errorData = await response.json(); } catch { errorData = { message: `Server status ${response.status}` }; } throw new Error(errorData.message || `HTTP error: ${response.status}`); } await response.json(); console.log("Save successful"); } catch (error) { console.error('Save error:', error); showStatus(`Error saving: ${error.message}`, true, true); state.hasUnsavedChanges = true; } finally { state.isLoading = false; if (state.hasUnsavedChanges) { setTimeout(saveLists, 150); } } }
+
+        // --- NEW: Function to delete item from master list ---
+        async function deleteMasterItem(textToDelete) {
+            if (!textToDelete) return; // Don't proceed if text is empty
+
+            if (!confirm(`PERMANENTLY DELETE "${textToDelete}" from the master list?\nThis cannot be undone.`)) {
+                console.log("Master delete cancelled.");
+                return; // User cancelled
+            }
+
+            console.log(`Attempting to permanently delete: ${textToDelete}`);
+            showStatus(`Deleting "${textToDelete}"...`, false, true);
+            state.isLoading = true; // Use loading state
+
+            try {
+                const response = await fetch(API_ENDPOINT, {
+                    method: 'POST', // Using POST with an action field as defined in api.php
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'deleteMasterItem',
+                        text: textToDelete
+                    })
+                });
+
+                const result = await response.json(); // Try to parse JSON regardless of status
+
+                if (!response.ok) {
+                    throw new Error(result.message || `Server error ${response.status}`);
+                }
+
+                console.log("Delete response:", result);
+                showStatus(result.message || "Item processed.", false);
+
+                // If deletion was successful on backend, update local state
+                if (result.status === 'success' && result.deleted) {
+                    // Remove from master list state
+                    state.masterItemList = state.masterItemList.filter(item => item.text.toLowerCase() !== textToDelete.toLowerCase());
+                    updateMasterItemTexts(); // Update autocomplete data
+
+                    // Also remove from current list state if present
+                    const initialCurrentLength = state.items.length;
+                    state.items = state.items.filter(item => item.text.toLowerCase() !== textToDelete.toLowerCase());
+                    const currentItemRemoved = state.items.length < initialCurrentLength;
+
+                    // Re-render browse page immediately
+                    renderBrowsePage();
+                    // Re-render main list only if an item was removed from it
+                    if (currentItemRemoved) {
+                        renderList();
+                    }
+                } else if (result.status === 'success' && !result.deleted) {
+                     // Item wasn't found on backend master list, but request succeeded
+                     // Ensure local state reflects this (it might already if fetch was recent)
+                    state.masterItemList = state.masterItemList.filter(item => item.text.toLowerCase() !== textToDelete.toLowerCase());
+                    updateMasterItemTexts();
+                    renderBrowsePage(); // Re-render browse page
+                 }
+
+            } catch (error) {
+                console.error('Delete Master Item Error:', error);
+                showStatus(`Error deleting item: ${error.message}`, true, true);
+            } finally {
+                state.isLoading = false;
+                // Re-enable delete mode button? Or assume user wants to exit delete mode on error?
+                // For now, leave delete mode as it is. User can toggle it off manually.
+            }
+        }
+
+
+        // --- Data Management ---
+        function updateMasterItemTexts() { state.masterItemTexts = [...new Set(state.masterItemList.map(item => item.text))].sort((a, b) => a.localeCompare(b)); }
+        function getMasterItem(text) { if (!text) return null; return state.masterItemList.find(item => item.text.toLowerCase() === text.toLowerCase()); }
+        function addTextToMasterList(text, incrementCount = false) { if (!text) return false; const lowerText = text.toLowerCase(); const existingMasterItem = state.masterItemList.find(item => item.text.toLowerCase() === lowerText); if (existingMasterItem) { if (incrementCount) { existingMasterItem.boughtCount = (existingMasterItem.boughtCount || 0) + 1; return true; } return false; } else { state.masterItemList.push({ text: text, boughtCount: incrementCount ? 1 : 0 }); updateMasterItemTexts(); return true; } }
+
+        // --- Core Actions ---
+        function addItem(textToAdd = null, markAsBought = false, triggeredByBrowse = false) { const text = (textToAdd !== null ? textToAdd : elements.itemInput.value).trim(); if (!text) { if (textToAdd === null) elements.itemInput.focus(); return; } const itemExistsOnList = state.items.some(item => item.text.toLowerCase() === text.toLowerCase()); if (itemExistsOnList) { if (textToAdd === null) { elements.itemInput.value = ''; clearSuggestions(); } return; } const newItem = { id: Date.now() + Math.random(), text: text, bought: markAsBought }; state.items.unshift(newItem); addTextToMasterList(text, false); renderList(); if (state.isBrowsePageOpen) { renderBrowsePage(); } if (!triggeredByBrowse || textToAdd !== null) { saveLists(); } if (textToAdd === null) { elements.itemInput.value = ''; clearSuggestions(); elements.itemInput.focus(); } }
+        function toggleBought(id) { let itemChanged = false; let masterItemNeedsSave = false; state.items = state.items.map(item => { if (item.id === id) { const wasBought = item.bought; item.bought = !item.bought; itemChanged = true; if (item.bought && !wasBought) { if (addTextToMasterList(item.text, true)) { masterItemNeedsSave = true; } } } return item; }); if (itemChanged) { renderList(); if (state.isBrowsePageOpen) { renderBrowsePage(); } saveLists(); } }
+        function removeItem(id, triggeredByBrowse = false) { const initialLength = state.items.length; const itemToRemove = state.items.find(item => item.id === id); if (!itemToRemove) return; state.items = state.items.filter(item => item.id !== id); if (state.items.length < initialLength) { renderList(); if (state.isBrowsePageOpen) { renderBrowsePage(); } if (!triggeredByBrowse) { saveLists(); } } }
+        function clearBoughtItems() { const boughtItems = state.items.filter(item => item.bought); if (boughtItems.length === 0) return; state.items = state.items.filter(item => !item.bought); console.log(`Cleared ${boughtItems.length} items.`); renderList(); if (state.isBrowsePageOpen) { renderBrowsePage(); } saveLists(); }
+        function resetList() { if (confirm("Are you sure you want to remove ALL items from the current list?")) { console.log("Resetting list..."); state.items = []; renderList(); if (state.isBrowsePageOpen) { renderBrowsePage(); } saveLists(); showStatus("List reset.", false); } else { console.log("Reset cancelled."); } }
+
+        // --- Autocomplete ---
+        function handleInput() { const query = elements.itemInput.value.trim().toLowerCase(); if (!query || !state.masterItemTexts.length) { clearSuggestions(); return; } const startsWith = []; const contains = []; state.masterItemTexts.forEach(text => { const lowerText = text.toLowerCase(); if (lowerText.startsWith(query)) startsWith.push(text); else if (lowerText.includes(query)) contains.push(text); }); const suggestions = [...startsWith, ...contains].slice(0, 5); displaySuggestions(suggestions); }
+        function displaySuggestions(suggestions) { elements.suggestionsList.innerHTML = ''; if (!suggestions.length) { clearSuggestions(); return; } suggestions.forEach(text => { const div = document.createElement('div'); div.textContent = text; div.className = 'suggestion-item'; div.addEventListener('click', () => { elements.itemInput.value = text; clearSuggestions(); elements.itemInput.focus(); }); elements.suggestionsList.appendChild(div); }); elements.suggestionsList.classList.remove('hidden'); }
+        function clearSuggestions() { elements.suggestionsList.innerHTML = ''; elements.suggestionsList.classList.add('hidden'); }
+
+// --- Rendering ---
+        function renderList() {
+            // renderList function updated to remove alphabetical sort
+            console.log("Rendering main list...");
+            // Basic check
+            if (!elements.shoppingList || !elements.clearButton || !elements.resetButton) {
+                console.error("RenderList: Required elements missing!");
+                return;
+            }
+            elements.shoppingList.innerHTML = '';
+             // --- THIS IS THE UPDATED SORT LINE ---
+            // Sort items: not bought first, then bought (maintaining original order within groups)
+            state.items.sort((a, b) => a.bought - b.bought); // false (0) before true (1)
+            // --- END UPDATED SORT LINE ---
+
+            const hasBoughtItems = state.items.some(item => item.bought);
+            elements.clearButton.disabled = !hasBoughtItems;
+            elements.clearButton.classList.toggle('opacity-50', !hasBoughtItems);
+            elements.clearButton.classList.toggle('cursor-not-allowed', !hasBoughtItems);
+            elements.resetButton.disabled = state.items.length === 0;
+            elements.resetButton.classList.toggle('opacity-50', state.items.length === 0);
+            elements.resetButton.classList.toggle('cursor-not-allowed', state.items.length === 0);
+
+            if (!state.items.length) {
+                elements.shoppingList.innerHTML = '<li class="text-center text-gray-400 py-4">Shopping list is empty.</li>';
+                return;
+            }
+            state.items.forEach(item => {
+                if (!item || typeof item.id === 'undefined' || typeof item.text !== 'string' || typeof item.bought !== 'boolean') { console.warn("Skipping render for invalid item:", item); return; }
+                const li = document.createElement('li');
+                // Using the class string from the version where opacity was removed for bought items
+                li.className = `flex items-center justify-between p-1 pl-2 rounded-md shadow-sm list-item-enter transition-all duration-300 border border-gray-600 ${item.bought ? 'bought-item-bg' : 'bg-gray-700'}`;
+                li.dataset.id = item.id;
+                const itemTextContainer = document.createElement('div'); itemTextContainer.className = 'flex-grow mr-2 overflow-hidden';
+                const itemText = document.createElement('span'); itemText.textContent = item.text;
+                // Keep bought text styling
+                itemText.className = `text-gray-100 break-words ${item.bought ? 'bought-text' : ''}`;
+                itemTextContainer.appendChild(itemText);
+                const controlsDiv = document.createElement('div'); controlsDiv.className = 'flex items-center space-x-1 flex-shrink-0';
+                const toggleButton = document.createElement('button'); toggleButton.textContent = item.bought ? 'Add Back' : 'Done';
+                toggleButton.className = `text-xs font-semibold text-white px-2 py-1 rounded transition duration-150 ease-in-out action-button ${item.bought ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-teal-600 hover:bg-teal-500'}`;
+                toggleButton.ariaLabel = `Mark ${item.text} as ${item.bought ? 'not bought' : 'bought'}`;
+                toggleButton.addEventListener('click', () => toggleBought(item.id));
+                const removeButton = document.createElement('button'); removeButton.textContent = 'Remove';
+                removeButton.className = 'bg-red-600 hover:bg-red-500 text-white text-xs font-semibold px-2 py-1 rounded transition duration-150 ease-in-out action-button';
+                removeButton.ariaLabel = `Remove ${item.text}`;
+                removeButton.addEventListener('click', () => removeItem(item.id));
+                controlsDiv.appendChild(toggleButton); controlsDiv.appendChild(removeButton);
+                li.appendChild(itemTextContainer); li.appendChild(controlsDiv); elements.shoppingList.appendChild(li);
+             });
+             console.log("Main list rendering complete.");
+         }
+
+        // --- Browse Page ---
+        function openBrowsePage() {
+            console.log("Opening browse page...");
+            // Reset delete mode when opening browse page
+            if (state.isDeleteModeActive) {
+                toggleDeleteMode(); // Turn it off if it was left on
+            }
+            state.isBrowsePageOpen = true;
+            renderBrowsePage();
+            elements.browsePageContainer.classList.remove('hidden');
+            elements.mainContent.classList.add('hidden');
+            console.log("Browse page visible.");
+         }
+        function closeBrowsePage() {
+            console.log("Closing browse page...");
+            // Ensure delete mode is off when closing
+             if (state.isDeleteModeActive) {
+                toggleDeleteMode();
+            }
+            state.isBrowsePageOpen = false;
+            elements.browsePageContainer.classList.add('hidden');
+            elements.mainContent.classList.remove('hidden');
+            console.log("Browse page hidden.");
+         }
+
+         // --- MODIFIED: renderBrowsePage to handle delete mode visuals ---
+        function renderBrowsePage() {
+            console.log("Rendering browse page...");
+            elements.browseItemsContainer.innerHTML = '';
+            if (!state.masterItemList || state.masterItemList.length === 0) {
+                elements.browseItemsContainer.innerHTML = '<p class="text-gray-400 w-full text-center">No items found.</p>';
+                // Disable delete mode button if list is empty
+                elements.deleteModeButton.disabled = true;
+                elements.deleteModeButton.classList.add('opacity-50', 'cursor-not-allowed');
+                return;
+            }
+
+             // Enable delete mode button if list has items
+             elements.deleteModeButton.disabled = false;
+             elements.deleteModeButton.classList.remove('opacity-50', 'cursor-not-allowed');
+
+
+            const currentItemsMap = new Map(state.items.map(item => [item.text.toLowerCase(), true]));
+            const sortedMasterList = [...state.masterItemList].sort((a, b) => a.text.localeCompare(b.text));
+            console.log(`Rendering ${sortedMasterList.length} browse items. Delete mode: ${state.isDeleteModeActive}`);
+
+            // Add/remove class to parent container for delete mode styling
+            elements.browseContent.classList.toggle('delete-mode-active', state.isDeleteModeActive);
+
+            sortedMasterList.forEach(masterItem => {
+                const button = document.createElement('button');
+                button.textContent = masterItem.text;
+                button.dataset.text = masterItem.text;
+
+                // Determine style based on whether it's on the current list *unless* in delete mode
+                let isOnList = false;
+                if (!state.isDeleteModeActive) {
+                     isOnList = currentItemsMap.has(masterItem.text.toLowerCase());
+                }
+                 // Set base style (off-list is default look in delete mode unless toggled on)
+                button.className = `browse-item-button ${isOnList ? 'on-list' : 'off-list'}`;
+                 if (!state.isDeleteModeActive) {
+                     button.setAttribute('aria-pressed', isOnList.toString());
+                 } else {
+                     button.removeAttribute('aria-pressed'); // Not relevant in delete mode
+                 }
+
+
+                // Attach the unified click handler
+                button.addEventListener('click', () => {
+                    handleBrowseItemClick(masterItem.text, button);
+                });
+                elements.browseItemsContainer.appendChild(button);
+            });
+            console.log("Browse page render complete.");
+        }
+
+        // --- MODIFIED: toggleBrowseItem replaced with handleBrowseItemClick ---
+        function handleBrowseItemClick(itemText, buttonElement) {
+             if (state.isDeleteModeActive) {
+                 // --- Delete Mode Action ---
+                 console.log(`DELETE MODE CLICK: Attempting delete for "${itemText}"`);
+                 deleteMasterItem(itemText); // This function now handles confirmation and backend call
+             } else {
+                 // --- Normal Toggle Action ---
+                 console.log(`Toggling browse item: ${itemText}`);
+                 const itemOnList = state.items.find(item => item.text.toLowerCase() === itemText.toLowerCase());
+                 if (itemOnList) {
+                     console.log(` -> Removing.`);
+                     removeItem(itemOnList.id, true); // Mark as triggered by browse
+                 } else {
+                     console.log(` -> Adding.`);
+                     addItem(itemText, false, true); // Mark as triggered by browse
+                 }
+                 saveLists(); // Save changes after add/remove
+                 renderBrowsePage(); // Re-render to update button state immediately
+             }
+         }
+
+         // --- NEW: Function to toggle delete mode ---
+        function toggleDeleteMode() {
+            state.isDeleteModeActive = !state.isDeleteModeActive;
+            console.log("Delete Mode Toggled:", state.isDeleteModeActive);
+    
+            // Get reference to the instruction text (ensure elements object is updated if needed, or get it here)
+            const instructionText = document.getElementById('browseInstructionText'); // Get element reference
+    
+            // Update button appearance and text
+            if (state.isDeleteModeActive) {
+                 elements.deleteModeButton.textContent = 'Cancel Delete';
+                 elements.deleteModeButton.classList.remove('bg-red-700', 'hover:bg-red-600');
+                 elements.deleteModeButton.classList.add('bg-gray-600', 'hover:bg-gray-500');
+                 elements.deleteModeStatus.classList.remove('hidden');
+                 if (instructionText) instructionText.classList.add('hidden'); // <-- ADD THIS LINE to hide instruction
+            } else {
+                 elements.deleteModeButton.textContent = 'Delete';
+                 elements.deleteModeButton.classList.remove('bg-gray-600', 'hover:bg-gray-500');
+                 elements.deleteModeButton.classList.add('bg-red-700', 'hover:bg-red-600');
+                 elements.deleteModeStatus.classList.add('hidden');
+                 if (instructionText) instructionText.classList.remove('hidden'); // <-- ADD THIS LINE to show instruction
+            }
+    
+             // Re-render the browse page to apply/remove delete mode styling and behavior
+             renderBrowsePage();
+         }
+
+
+        // --- Initialization ---
+        async function initializeApp() { console.log("Initializing app..."); clearStatus(); showStatus('Loading lists...', false, true); state.isLoading = true; try { const { items, masterItemList } = await fetchLists(); state.masterItemList = masterItemList; state.items = items; console.log(`Initialized: ${items.length} items, ${masterItemList.length} master.`); items.forEach(item => addTextToMasterList(item.text, false)); updateMasterItemTexts(); renderList(); elements.browsePageContainer.classList.add('hidden'); elements.mainContent.classList.remove('hidden'); state.isBrowsePageOpen = false; setupEventListeners(); clearStatus(); } catch (error) { console.error('Initialization failed:', error); renderList(); setupEventListeners(); } finally { state.isLoading = false; console.log("Initialization complete."); } }
+
+        // --- Event Listeners Setup ---
+        function setupEventListeners() {
+            console.log("Setting up event listeners...");
+            try {
+                elements.addButton.addEventListener('click', () => addItem());
+                elements.itemInput.addEventListener('keypress', e => { if (e.key === 'Enter') { e.preventDefault(); addItem(); } });
+                elements.clearButton.addEventListener('click', clearBoughtItems);
+                elements.resetButton.addEventListener('click', resetList);
+                elements.itemInput.addEventListener('input', handleInput);
+                elements.itemInput.addEventListener('focusout', () => setTimeout(clearSuggestions, 150));
+                document.addEventListener('click', (event) => { if (elements.suggestionsContainer && !elements.suggestionsContainer.contains(event.target)) { clearSuggestions(); } });
+                elements.browseButton.addEventListener('click', openBrowsePage);
+                elements.closeBrowseButton.addEventListener('click', closeBrowsePage);
+                // NEW Listener for delete mode button
+                elements.deleteModeButton.addEventListener('click', toggleDeleteMode);
+                console.log("Event listeners setup complete.");
+             } catch (error) {
+                  console.error("ERROR setting up event listeners:", error);
+                  showStatus("Error attaching controls. Check console.", true, true);
+             }
+        }
+
+        // --- Start App ---
+        document.addEventListener('DOMContentLoaded', initializeApp);
+
+    </script>
+</body>
+</html>
